@@ -60,9 +60,14 @@ class Page {
 
 Page bookPage = Page();
 
-class Home extends StatelessWidget {
+class Home extends StatefulWidget {
   const Home({super.key});
 
+  @override
+  State<Home> createState() => _HomeState();
+}
+
+class _HomeState extends State<Home> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -120,7 +125,9 @@ class Home extends StatelessWidget {
             icon: const Icon(Icons.keyboard_arrow_left, size: 50.0),
             tooltip: 'Previous Page',
             onPressed: () {
-              bookPage.previous();
+              setState(() {
+                bookPage.previous();
+              });
             },
           ),
           Image.asset(bookPage.getCurrent()),
@@ -129,7 +136,9 @@ class Home extends StatelessWidget {
             icon: const Icon(Icons.keyboard_arrow_right, size: 50.0),
             tooltip: 'Next Page',
             onPressed: () {
-              bookPage.next();
+              setState(() {
+                bookPage.next();
+              });
             },
           ),
         ],
