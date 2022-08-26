@@ -2,66 +2,53 @@ import 'package:flutter/material.dart';
 
 // pickFiles
 import 'package:file_picker/file_picker.dart';
-// File
+// zip extraction
+import 'package:archive/archive_io.dart';
+// File Manipulation
 import 'dart:io';
 
-import 'package:archive/archive_io.dart';
+import './global.dart';
+import './file_system.dart';
+import './book.dart';
 
 void main() => runApp(const MaterialApp(
+      // Remove the debug band
       debugShowCheckedModeBanner: false,
       home: Home(),
     ));
 
-List<String> getFileList(String directory) {
-  List<String> filePathList = [];
+void loadBook(BuildContext context) async {
+  FilePickerResult? result = await FilePicker.platform.pickFiles();
+  if (result == null) {
+    return;
+  }
+  File file = File(result.files.single.path.toString());
+  debugPrint(file.path);
 
-  List<FileSystemEntity> fileList = Directory(directory).listSync();
-
-  for (FileSystemEntity fileEntity in fileList) {
-    String filePath = fileEntity.toString();
-    filePath = filePath.replaceFirst("File: '", "");
-    // Remove last "'"
-    filePath = filePath.substring(0, filePath.length - 1);
-
-    filePathList.add(filePath);
+  String fileExtension = getExtension(file.path);
+  if (fileExtension != "cbz") {
+    showDialog<String>(
+      context: context,
+      builder: (BuildContext context) => AlertDialog(
+        title: const Text('Issue when loading file'),
+        content: Text('Unkown Extension $fileExtension'),
+        actions: <Widget>[
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
+          ),
+        ],
+      ),
+    );
+    return;
   }
 
-  filePathList.sort();
+  Future<File> fileCopied = file.copy("./images/${getFileName(file.path)}.zip");
+  File fileCopiedTrue = await fileCopied;
+  String fileCopiedPath = fileCopiedTrue.path;
+  debugPrint("New File Path : $fileCopiedPath");
 
-  return filePathList;
-}
-
-class Page {
-  List<String> imageList = [];
-  int currentIndex = 0;
-
-  Page(String bookFolderPath) {
-    imageList = getFileList(bookFolderPath);
-  }
-
-  void add(String filePath) {
-    imageList.add(filePath);
-  }
-
-  void next() {
-    currentIndex = getNextIndex();
-  }
-
-  void previous() {
-    currentIndex = (currentIndex - 1) % (imageList.length);
-  }
-
-  String getCurrent() {
-    return imageList[currentIndex];
-  }
-
-  String getNext() {
-    return imageList[getNextIndex()];
-  }
-
-  int getNextIndex() {
-    return (currentIndex + 1) % (imageList.length);
-  }
+  extractFileToDisk(fileCopiedPath, './images/');
 }
 
 class Home extends StatefulWidget {
@@ -71,32 +58,65 @@ class Home extends StatefulWidget {
   State<Home> createState() => _HomeState();
 }
 
-String getExtension(String file) {
-  int index = file.lastIndexOf('.');
-
-  if (index == -1) {
-    return "";
+int getNumberOfElement(double ratio) {
+  if (ratio >= 4) {
+    return 7;
+  } else if (ratio >= 3) {
+    return 6;
+  } else if (ratio >= 2.2) {
+    return 5;
+  } else if (ratio >= 1.6) {
+    return 4;
+  } else if (ratio >= 1.2) {
+    return 3;
+  } else if (ratio >= 0.6) {
+    return 2;
+  } else {
+    return 1;
   }
-
-  return file.substring(index + 1);
 }
 
-String getFileName(String filePath) {
-  // A file name is between a slash and a dot
-  int indexStart = filePath.lastIndexOf('/');
-  int indexEnd = filePath.lastIndexOf('.');
+class Animate {
+  late AnimationController controller;
+  late Animation animation;
 
-  if (indexEnd == -1) {
-    indexEnd = filePath.length;
+  Animate(double begin, double end, int duration, var thisValue,
+      Function setStateFunction) {
+    // Defining controller with animation duration of two seconds
+    controller = AnimationController(
+        vsync: thisValue, duration: const Duration(milliseconds: 400));
+
+    animation = Tween<double>(begin: 25.0, end: 0.0).animate(controller);
+
+    // Rebuilding the screen when animation goes ahead
+    controller.addListener(() {
+      setStateFunction(() {});
+    });
   }
-
-  return filePath.substring(indexStart + 1, indexEnd);
 }
 
-class _HomeState extends State<Home> {
-  Page bookPage = Page("./images/");
+class _HomeState extends State<Home> with TickerProviderStateMixin {
+  List<Animate> animations = [];
+
+  Books books = Books(gBooksPath);
+
+  bool isImageHovered = false;
+
   int redColor = 500;
   bool showSnackbar = false;
+
+  int? currentAnimationIndex;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Animate baseValue = Animate(25.0, 0.0, 400, this, setState);
+    animations = [
+      for (int i = 0; i < books.number; ++i)
+        Animate(25.0, 0.0, 400, this, setState)
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -109,164 +129,80 @@ class _HomeState extends State<Home> {
           IconButton(
             icon: const Icon(Icons.file_upload_rounded),
             tooltip: 'Load File',
-            onPressed: () async {
-              FilePickerResult? result = await FilePicker.platform.pickFiles();
-              if (result != null) {
-                File file = File(result.files.single.path.toString());
-                debugPrint(file.path);
-
-                String fileExtension = getExtension(file.path);
-                if (fileExtension != "cbz") {
-                  showDialog<String>(
-                    context: context,
-                    builder: (BuildContext context) => AlertDialog(
-                      title: const Text('Issue when loading file'),
-                      content: Text('Unkown Extension $fileExtension'),
-                      actions: <Widget>[
-                        TextButton(
-                          onPressed: () => Navigator.pop(context),
-                          child: const Text('OK'),
-                        ),
-                      ],
-                    ),
-                  );
-                  return;
-                }
-
-                Future<File> fileCopied =
-                    file.copy("./images/${getFileName(file.path)}.zip");
-                File fileCopiedTrue = await fileCopied;
-                String fileCopiedPath = fileCopiedTrue.path;
-                debugPrint("New File Path : $fileCopiedPath");
-
-                extractFileToDisk(fileCopiedPath, './images/');
-              }
+            onPressed: () {
+              loadBook(context);
             },
           ),
           IconButton(
             icon: const Icon(Icons.info_outline_rounded),
             tooltip: 'Files Information',
-            onPressed: () {
-              if (!showSnackbar) {
-                String info = "List : ".toString() +
-                    bookPage.imageList.toString() +
-                    "\n".toString() +
-                    "Current : ".toString() +
-                    bookPage.getCurrent() +
-                    "\n".toString() +
-                    "Next : ".toString() +
-                    bookPage.getNext();
-                ScaffoldMessenger.of(context)
-                    .showSnackBar(SnackBar(content: Text(info)));
-              } else {
-                ScaffoldMessenger.of(context).removeCurrentSnackBar();
-              }
-
-              showSnackbar = !showSnackbar;
-            },
+            onPressed: () {},
           ),
         ],
       ),
-      body: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          IconButton(
-            icon: const Icon(Icons.keyboard_arrow_left, size: 50.0),
-            tooltip: 'Previous Page',
-            onPressed: () {
-              setState(() {
-                bookPage.previous();
-              });
-            },
-          ),
-          Image.asset(bookPage.getCurrent()),
-          Image.asset(bookPage.getNext()),
-          IconButton(
-            icon: const Icon(Icons.keyboard_arrow_right, size: 50.0),
-            tooltip: 'Next Page',
-            onPressed: () {
-              setState(() {
-                bookPage.next();
-              });
-            },
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-void loadJpg(Page bookPage) async {
-  FilePickerResult? result = await FilePicker.platform.pickFiles();
-  if (result != null) {
-    File file = File(result.files.single.path.toString());
-    debugPrint(file.path);
-    if (getExtension(file.path) != "cbr") {}
-    extractFileToDisk('test.zip', 'out');
-
-    Future<File> fileCopied = file.copy("./images/image_new.jpg");
-    File fileCopiedTrue = await fileCopied;
-    String fileCopiedPath = fileCopiedTrue.path;
-    debugPrint("New File Path : $fileCopiedPath");
-    bookPage.add(fileCopiedPath);
-  }
-}
-
-// snippets for icons and buttons
-
-var iconSample =
-    const Icon(Icons.airport_shuttle, color: Colors.lightBlue, size: 50.0);
-
-var containerSample = Container(
-    color: Colors.cyan,
-    padding: const EdgeInsets.all(30.0),
-    child: const Text('inside container'));
-
-var textSample = Text(
-  'hello again, bibi!',
-  style: TextStyle(
-    fontSize: 20.0,
-    fontWeight: FontWeight.bold,
-    letterSpacing: 2.0,
-    color: Colors.grey[600],
-    fontFamily: 'IndieFlower',
-  ),
-);
-
-var floatingButtonSample = FloatingActionButton(
-  onPressed: () {},
-  backgroundColor: Colors.red[500],
-  child: const Text('click'),
-);
-
-var iconButtonBar1 = (BuildContext context) => IconButton(
-      icon: const Icon(Icons.add_alert),
-      tooltip: 'Show Snackbar',
-      onPressed: () {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(const SnackBar(content: Text('This is a snackbar')));
-      },
-    );
-
-var iconButtonBar2 = (BuildContext context) => IconButton(
-      icon: const Icon(Icons.navigate_next),
-      tooltip: 'Go to the next page',
-      onPressed: () {
-        Navigator.push(context, MaterialPageRoute<void>(
-          builder: (BuildContext context) {
-            return Scaffold(
-              appBar: AppBar(
-                title: const Text('Next page'),
-              ),
-              body: const Center(
-                child: Text(
-                  'This is the next page',
-                  style: TextStyle(fontSize: 24),
+      body: Container(
+        margin: const EdgeInsets.all(10.0),
+        child: LayoutBuilder(builder: (context, constraints) {
+          double parentWidth = constraints.maxWidth;
+          double parentHeight = constraints.maxHeight;
+          double ratio = parentWidth / parentHeight;
+          return GridView.count(
+            primary: false,
+            crossAxisCount: getNumberOfElement(ratio),
+            crossAxisSpacing: 10,
+            mainAxisSpacing: 10,
+            childAspectRatio: 2 / 3,
+            children: List.generate(books.number, (index) {
+              return Container(
+                padding: EdgeInsets.all(animations[index].animation.value),
+                child: IconButton(
+                  onPressed: () {},
+                  icon: ClipRRect(
+                      borderRadius: BorderRadius.circular(20.0),
+                      child: MouseRegion(
+                          onEnter: (PointerEvent details) {
+                            currentAnimationIndex = index;
+                            animations[index].controller.forward();
+                          },
+                          onExit: (PointerEvent details) {
+                            animations[index].controller.reverse();
+                          },
+                          child: Image.file(books.getTitlePage(index)))),
                 ),
-              ),
-            );
-          },
-        ));
-      },
+              );
+            }),
+          );
+        }),
+      ),
     );
+  }
+
+  Row bookPage(Book book) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        IconButton(
+          icon: const Icon(Icons.keyboard_arrow_left, size: 50.0),
+          tooltip: 'Previous Page',
+          onPressed: () {
+            setState(() {
+              book.previousPage();
+            });
+          },
+        ),
+        Image.asset(book.getCurrentPage()),
+        Image.asset(book.getNextPage()),
+        IconButton(
+          icon: const Icon(Icons.keyboard_arrow_right, size: 50.0),
+          tooltip: 'Next Page',
+          onPressed: () {
+            setState(() {
+              book.nextPage();
+            });
+          },
+        ),
+      ],
+    );
+  }
+}
