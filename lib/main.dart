@@ -5,32 +5,38 @@ import 'package:file_picker/file_picker.dart';
 // File
 import 'dart:io';
 
+import 'package:archive/archive_io.dart';
+
 void main() => runApp(const MaterialApp(
       debugShowCheckedModeBanner: false,
       home: Home(),
     ));
 
-int redColor = 500;
-bool showSnackbar = false;
+List<String> getFileList(String directory) {
+  List<String> filePathList = [];
+
+  List<FileSystemEntity> fileList = Directory(directory).listSync();
+
+  for (FileSystemEntity fileEntity in fileList) {
+    String filePath = fileEntity.toString();
+    filePath = filePath.replaceFirst("File: '", "");
+    // Remove last "'"
+    filePath = filePath.substring(0, filePath.length - 1);
+
+    filePathList.add(filePath);
+  }
+
+  filePathList.sort();
+
+  return filePathList;
+}
 
 class Page {
   List<String> imageList = [];
   int currentIndex = 0;
 
-  Page() {
-    // directory = (await getApplicationDocumentsDirectory()).path;
-    List<FileSystemEntity> newList = Directory("./images/").listSync();
-
-    for (FileSystemEntity fileEntity in newList) {
-      String filePath = fileEntity.toString();
-      filePath = filePath.replaceFirst("File: '", "");
-      // Remove last "'"
-      filePath = filePath.substring(0, filePath.length - 1);
-
-      imageList.add(filePath);
-    }
-
-    imageList.sort();
+  Page(String bookFolderPath) {
+    imageList = getFileList(bookFolderPath);
   }
 
   void add(String filePath) {
@@ -58,8 +64,6 @@ class Page {
   }
 }
 
-Page bookPage = Page();
-
 class Home extends StatefulWidget {
   const Home({super.key});
 
@@ -67,7 +71,33 @@ class Home extends StatefulWidget {
   State<Home> createState() => _HomeState();
 }
 
+String getExtension(String file) {
+  int index = file.lastIndexOf('.');
+
+  if (index == -1) {
+    return "";
+  }
+
+  return file.substring(index + 1);
+}
+
+String getFileName(String filePath) {
+  // A file name is between a slash and a dot
+  int indexStart = filePath.lastIndexOf('/');
+  int indexEnd = filePath.lastIndexOf('.');
+
+  if (indexEnd == -1) {
+    indexEnd = filePath.length;
+  }
+
+  return filePath.substring(indexStart + 1, indexEnd);
+}
+
 class _HomeState extends State<Home> {
+  Page bookPage = Page("./images/");
+  int redColor = 500;
+  bool showSnackbar = false;
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -85,11 +115,31 @@ class _HomeState extends State<Home> {
                 File file = File(result.files.single.path.toString());
                 debugPrint(file.path);
 
-                Future<File> fileCopied = file.copy("./images/image_new.jpg");
+                String fileExtension = getExtension(file.path);
+                if (fileExtension != "cbz") {
+                  showDialog<String>(
+                    context: context,
+                    builder: (BuildContext context) => AlertDialog(
+                      title: const Text('Issue when loading file'),
+                      content: Text('Unkown Extension $fileExtension'),
+                      actions: <Widget>[
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('OK'),
+                        ),
+                      ],
+                    ),
+                  );
+                  return;
+                }
+
+                Future<File> fileCopied =
+                    file.copy("./images/${getFileName(file.path)}.zip");
                 File fileCopiedTrue = await fileCopied;
                 String fileCopiedPath = fileCopiedTrue.path;
                 debugPrint("New File Path : $fileCopiedPath");
-                bookPage.add(fileCopiedPath);
+
+                extractFileToDisk(fileCopiedPath, './images/');
               }
             },
           ),
@@ -147,6 +197,22 @@ class _HomeState extends State<Home> {
   }
 }
 
+void loadJpg(Page bookPage) async {
+  FilePickerResult? result = await FilePicker.platform.pickFiles();
+  if (result != null) {
+    File file = File(result.files.single.path.toString());
+    debugPrint(file.path);
+    if (getExtension(file.path) != "cbr") {}
+    extractFileToDisk('test.zip', 'out');
+
+    Future<File> fileCopied = file.copy("./images/image_new.jpg");
+    File fileCopiedTrue = await fileCopied;
+    String fileCopiedPath = fileCopiedTrue.path;
+    debugPrint("New File Path : $fileCopiedPath");
+    bookPage.add(fileCopiedPath);
+  }
+}
+
 // snippets for icons and buttons
 
 var iconSample =
@@ -170,7 +236,7 @@ var textSample = Text(
 
 var floatingButtonSample = FloatingActionButton(
   onPressed: () {},
-  backgroundColor: Colors.red[redColor],
+  backgroundColor: Colors.red[500],
   child: const Text('click'),
 );
 
