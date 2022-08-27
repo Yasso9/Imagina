@@ -14,7 +14,7 @@ import './book.dart';
 void main() => runApp(const MaterialApp(
       // Remove the debug band
       debugShowCheckedModeBanner: false,
-      home: Home(),
+      home: CurrentPage(),
     ));
 
 void loadBook(BuildContext context) async {
@@ -49,13 +49,6 @@ void loadBook(BuildContext context) async {
   debugPrint("New File Path : $fileCopiedPath");
 
   extractFileToDisk(fileCopiedPath, './images/');
-}
-
-class Home extends StatefulWidget {
-  const Home({super.key});
-
-  @override
-  State<Home> createState() => _HomeState();
 }
 
 int getNumberOfElement(double ratio) {
@@ -95,27 +88,29 @@ class Animate {
   }
 }
 
-class _HomeState extends State<Home> with TickerProviderStateMixin {
-  List<Animate> animations = [];
+class CurrentPage extends StatefulWidget {
+  const CurrentPage({super.key});
 
-  Books books = Books(gBooksPath);
+  @override
+  State<CurrentPage> createState() => _CurrentPageState();
+}
 
-  bool isImageHovered = false;
+class _CurrentPageState extends State<CurrentPage> {
+  Widget currentWidget = Container();
 
   int redColor = 500;
-  bool showSnackbar = false;
 
-  int? currentAnimationIndex;
+  void changeWidget(Widget newWidget) {
+    setState(() {
+      currentWidget = newWidget;
+    });
+  }
 
   @override
   void initState() {
     super.initState();
 
-    // Animate baseValue = Animate(25.0, 0.0, 400, this, setState);
-    animations = [
-      for (int i = 0; i < books.number; ++i)
-        Animate(25.0, 0.0, 400, this, setState)
-    ];
+    currentWidget = Home(changeWidget);
   }
 
   @override
@@ -140,44 +135,99 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
           ),
         ],
       ),
-      body: Container(
-        margin: const EdgeInsets.all(10.0),
-        child: LayoutBuilder(builder: (context, constraints) {
-          double parentWidth = constraints.maxWidth;
-          double parentHeight = constraints.maxHeight;
-          double ratio = parentWidth / parentHeight;
-          return GridView.count(
-            primary: false,
-            crossAxisCount: getNumberOfElement(ratio),
-            crossAxisSpacing: 10,
-            mainAxisSpacing: 10,
-            childAspectRatio: 2 / 3,
-            children: List.generate(books.number, (index) {
-              return Container(
-                padding: EdgeInsets.all(animations[index].animation.value),
-                child: IconButton(
-                  onPressed: () {},
-                  icon: ClipRRect(
-                      borderRadius: BorderRadius.circular(20.0),
-                      child: MouseRegion(
-                          onEnter: (PointerEvent details) {
-                            currentAnimationIndex = index;
-                            animations[index].controller.forward();
-                          },
-                          onExit: (PointerEvent details) {
-                            animations[index].controller.reverse();
-                          },
-                          child: Image.file(books.getTitlePage(index)))),
-                ),
-              );
-            }),
-          );
-        }),
-      ),
+      body: currentWidget,
     );
   }
+}
 
-  Row bookPage(Book book) {
+class Home extends StatefulWidget {
+  final void Function(Widget) changeWidget;
+
+  const Home(void Function(Widget) changeWidgetArg, {super.key})
+      : changeWidget = changeWidgetArg;
+
+  @override
+  State<Home> createState() => _HomeState();
+}
+
+class _HomeState extends State<Home> with TickerProviderStateMixin {
+  List<Animate> animations = [];
+
+  Books books = Books(gBooksPath);
+
+  bool isImageHovered = false;
+
+  bool showSnackbar = false;
+
+  int? currentAnimationIndex;
+
+  @override
+  void initState() {
+    super.initState();
+
+    // Animate baseValue = Animate(25.0, 0.0, 400, this, setState);
+    animations = [
+      for (int i = 0; i < books.number; ++i)
+        Animate(25.0, 0.0, 400, this, setState)
+    ];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.all(10.0),
+      child: LayoutBuilder(builder: (context, constraints) {
+        double parentWidth = constraints.maxWidth;
+        double parentHeight = constraints.maxHeight;
+        double ratio = parentWidth / parentHeight;
+        return GridView.count(
+          primary: false,
+          crossAxisCount: getNumberOfElement(ratio),
+          crossAxisSpacing: 10,
+          mainAxisSpacing: 10,
+          childAspectRatio: 2 / 3,
+          children: List.generate(books.number, (index) {
+            return Container(
+              padding: EdgeInsets.all(animations[index].animation.value),
+              child: IconButton(
+                onPressed: () {
+                  widget.changeWidget(
+                      BookPage(widget.changeWidget, books[index]));
+                },
+                icon: ClipRRect(
+                    borderRadius: BorderRadius.circular(20.0),
+                    child: MouseRegion(
+                        onEnter: (PointerEvent details) {
+                          currentAnimationIndex = index;
+                          animations[index].controller.forward();
+                        },
+                        onExit: (PointerEvent details) {
+                          animations[index].controller.reverse();
+                        },
+                        child: Image.file(books.getTitlePage(index)))),
+              ),
+            );
+          }),
+        );
+      }),
+    );
+  }
+}
+
+class BookPage extends StatefulWidget {
+  final Book book;
+  final void Function(Widget) changeWidget;
+
+  const BookPage(void Function(Widget) changeWidgetArg, this.book, {super.key})
+      : changeWidget = changeWidgetArg;
+
+  @override
+  State<BookPage> createState() => _BookPageState();
+}
+
+class _BookPageState extends State<BookPage> {
+  @override
+  Widget build(BuildContext context) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceEvenly,
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -187,18 +237,18 @@ class _HomeState extends State<Home> with TickerProviderStateMixin {
           tooltip: 'Previous Page',
           onPressed: () {
             setState(() {
-              book.previousPage();
+              widget.book.previousPage();
             });
           },
         ),
-        Image.asset(book.getCurrentPage()),
-        Image.asset(book.getNextPage()),
+        Image.file(widget.book.getCurrentPage()),
+        Image.file(widget.book.getNextPage()),
         IconButton(
           icon: const Icon(Icons.keyboard_arrow_right, size: 50.0),
           tooltip: 'Next Page',
           onPressed: () {
             setState(() {
-              book.nextPage();
+              widget.book.nextPage();
             });
           },
         ),

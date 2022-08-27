@@ -39,20 +39,18 @@ class Book {
     currentIndex = (currentIndex - 1) % (imageList.length);
   }
 
-  String getCurrentPage() {
-    return imageList[currentIndex];
+  File getCurrentPage() {
+    return File(imageList[currentIndex]);
   }
 
-  String getNextPage() {
-    return imageList[getNextIndex()];
+  File getNextPage() {
+    return File(imageList[getNextIndex()]);
   }
 
   String getPage(int index) {
     if (!index.isIncluded(0, imageList.length)) {
       throw Exception('$index is out of range (0, ${imageList.length})');
     }
-
-    debugPrint(imageList[index]);
 
     return imageList[index];
   }
