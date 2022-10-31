@@ -2,8 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 
-import './file_system.dart';
-import './global.dart';
+import 'package:flutter_application/file_system.dart';
 
 extension IntExtensions on int {
   bool isIncluded(int left, int right, {isExclusive = false}) {
